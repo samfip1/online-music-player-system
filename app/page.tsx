@@ -1,3 +1,6 @@
+import { SessionProvider } from "next-auth/react";
+import Appbar from "./Componets/Appbar";
+import { Providers } from "./Providers";
 
 export default function Home() {
 
@@ -6,6 +9,10 @@ export default function Home() {
   return (
     <div>
       <h1>Hello</h1>
+      <Providers>
+      <Appbar />
+      </Providers>
+      
     </div>
   )
 }
