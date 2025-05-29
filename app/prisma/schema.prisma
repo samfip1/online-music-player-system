@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -43,6 +42,7 @@ model Upvotes {
   streamId String
   user User @relation(fields: [userId], references: [id])
   stream Stream @relation(fields: [streamId], references: [id])
+  @@unique([userId, streamId])    //every user can upvote a stream 1 time only
 }
 
 
