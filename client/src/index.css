@@ -1,0 +1,91 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Inter', ui-sans-serif, sans-serif;
+
+  --color-ink: #07070c;
+  --color-panel: #0f0f17;
+  --color-line: rgb(255 255 255 / 0.08);
+
+  --animate-eq: eq 1s ease-in-out infinite;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-toast: toast 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+
+  @keyframes eq {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes toast {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+}
+
+@layer base {
+  html {
+    overflow-x: clip; /* decorative glows must never cause sideways scrolling on phones */
+    background: var(--color-ink);
+    color: var(--color-zinc-100);
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100dvh;
+    font-family: var(--font-sans);
+  }
+  ::selection {
+    background: rgb(168 85 247 / 0.45);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-fuchsia-400);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role='button'] {
+    cursor: pointer;
+  }
+}
+
+@utility text-gradient {
+  background: linear-gradient(100deg, var(--color-violet-400), var(--color-fuchsia-400) 55%, var(--color-orange-300));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-brand {
+  background: linear-gradient(120deg, var(--color-violet-600), var(--color-fuchsia-500));
+}
+
+@utility glass {
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(16px);
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
