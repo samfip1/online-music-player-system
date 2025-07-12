@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  // Null for guests. Only Spotify-logged-in users can host.
+  spotifyId              String?   @unique
+  isGuest                Boolean   @default(false)
+  email                  String?
+  displayName            String
+  avatarUrl              String?
+  isPaid                 Boolean   @default(false)
+  paidUntil              DateTime?
+  // AES-256-GCM encrypted (see phase 2). Never store it in plain text.
+  spotifyRefreshToken    String?
+  // Latest Razorpay subscription started by this user (phase 9).
+  razorpaySubscriptionId String?   @unique
+  // Started at checkout, not paid yet. Becomes razorpaySubscriptionId once Razorpay reports it active.
+  pendingSubscriptionId  String?
+  // "pro" or "pro_host" (phase 22), from the Razorpay plan_id. Pro Host includes every Pro perk.
+  proPlan                String?
+  createdAt              DateTime  @default(now())
+
+  spaces     Space[]
+  queueItems QueueItem[]
+  votes      Vote[]
+  voteQuotas VoteQuota[]
+  skipVotes  SkipVote[]
+  bans       SpaceBan[]
+  payments   Payment[]
+}
+
+model Space {
+  id               String    @id @default(cuid())
+  name             String
+  hostId           String
+  // Now playing lives here instead of a separate CurrentTrack table (always one per space).
+  currentItemId    String?   @unique
+  currentStartedAt DateTime?
+  // Host settings (phase 18). Defaults match the original fixed rules.
+  maxQueue         Int       @default(20)
+  voteLimit        Int       @default(5)
+  queueLocked      Boolean   @default(false)
+  // Biggest crowd seen, for host insights (phase 22).
+  peakPeople       Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  host            User             @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  currentItem     QueueItem?       @relation("CurrentItem", fields: [currentItemId], references: [id], onDelete: SetNull)
+  queueItems      QueueItem[]      @relation("SpaceQueue")
+  voteQuotas      VoteQuota[]
+  bans            SpaceBan[]
+  presenceSamples PresenceSample[]
+
+  @@index([hostId])
+}
+
+model QueueItem {
+  id          String    @id @default(cuid())
+  spaceId     String
+  addedById   String
+  // Generic names on purpose: only search and the host player know these come from Spotify.
+  trackId     String
+  trackUri    String
+  title       String
+  artists     String[]
+  albumArtUrl String?
+  durationMs  Int
+  played      Boolean   @default(false)
+  playedAt    DateTime?
+  // "host" or "room" when the song was skipped instead of ending normally (phase 22).
+  skipReason  String?
+  // Reactions sent while this song was playing.
+  reactions   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  space     Space      @relation("SpaceQueue", fields: [spaceId], references: [id], onDelete: Cascade)
+  addedBy   User       @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  votes     Vote[]
+  skipVotes SkipVote[]
+  playingIn Space?     @relation("CurrentItem")
+
+  @@index([spaceId, played])
+  @@index([spaceId, playedAt])
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  userId      String
+  queueItemId String
+  // +1 upvote, -1 downvote. One row per person per song; switching direction updates it.
+  value       Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  queueItem QueueItem @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, queueItemId])
+  // Counting votes per item starts from queueItemId, which the unique index above can't serve.
+  @@index([queueItemId])
+}
+
+model VoteQuota {
+  userId      String
+  spaceId     String
+  votesUsed   Int       @default(0)
+  lockedUntil DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, spaceId])
+  @@index([spaceId])
+}
+
+// Votes to skip the song that's playing (phase 17). Separate from normal votes: no quota, no Pro weighting.
+model SkipVote {
+  queueItemId String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  queueItem QueueItem @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([queueItemId, userId])
+}
+
+// People the host removed from a space (phase 15). Per account: a guest can rejoin under a new name.
+model SpaceBan {
+  spaceId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([spaceId, userId])
+}
+
+// Razorpay payments (phase 19), for revenue in the admin dashboard.
+// The Razorpay id is the key, so a webhook delivered twice is stored once.
+model Payment {
+  id        String   @id
+  userId    String?
+  amount    Int // in paise
+  currency  String
+  createdAt DateTime
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  refunds Refund[]
+
+  @@index([createdAt])
+}
+
+model Refund {
+  id        String   @id
+  paymentId String
+  amount    Int // in paise
+  createdAt DateTime
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+// Head count once a minute while anyone is in a space: "crowd over time" in host insights (phase 22).
+model PresenceSample {
+  id      Int      @id @default(autoincrement())
+  spaceId String
+  at      DateTime @default(now())
+  people  Int
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@index([spaceId, at])
+}
